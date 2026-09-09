@@ -48,3 +48,19 @@ asset with native Pyglet's silent driver. Add `--audible` for a brief cue at
 the public audio interface; all 18 existing Tribes WAVs remain byte-identical
 after replacing its duplicate helper code. These checks establish asset and
 playback correctness, not artistic sound quality.
+
+## Held voices, strings, rooms
+
+Longer compositions need instruments rather than blips.  `sustained` holds a
+note with an ADSR shape (`adsr` is available on its own), vibrato that settles
+in after the attack, and *voices* detuned copies for a section sound; it reads
+a wavetable, so a fifteen-second pad costs a few milliseconds.  `pluck` is a
+Karplus–Strong string solved in the frequency domain: one FFT per note,
+exactly in tune, with *brightness* for the pick and *tau* for the decay.
+`lowpass`, `highpass` and `formant` (vowel presets `AH`, `OH`, `OO`) shape a
+clip's spectrum without changing its length or timing.  `reverb` convolves a
+decorrelated stereo tail; with `wrap=True` the tail folds round to the start
+so a loop keeps its room across the seam.  `soft_clip` rounds off a dense
+mix and `loop_add` places a clip on a loop, wrapping whatever runs past the
+end.  Warband's `instruments.py` builds strings, horns, flutes, choirs, harps
+and a drum kit from these; `docs/warband-music.md` describes the pieces.
