@@ -16,7 +16,7 @@ def main():
     args = parser.parse_args()
     os.environ["SAGA2D_SILENT"] = "0" if args.audible else "1"
     from saga2d import Game, Scene
-    from saga2d.synth import BELL, level, mix, noise, pan, thump, tone, write_wav
+    from sagaforge.synth import BELL, level, mix, noise, pan, thump, tone, write_wav
 
     with TemporaryDirectory(prefix="saga2d-synth-") as directory:
         root = Path(directory)

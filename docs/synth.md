@@ -1,13 +1,13 @@
 # Compose audio with samples
 
-`saga2d.synth` extracts the pure NumPy synthesis functions used in Tribes
+`sagaforge.synth` extracts the pure NumPy synthesis functions used in Tribes
 and offered by Warband's committed sound module. Games supply compositions;
 Saga2D supplies sample math and WAV encoding. Shardbound can ship generated
 assets without doing synthesis or creating a second audio manager at launch.
 
 ```python
 from pathlib import Path
-from saga2d.synth import level, mix, noise, pan, thump, tone, write_wav
+from sagaforge.synth import level, mix, noise, pan, thump, tone, write_wav
 
 impact = level(mix(
     thump(180, 60, .2),
