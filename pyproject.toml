@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sagaforge"
+version = "0.1.0"
+description = "Procedural asset generation for Saga2D games: sample-based sound synthesis and a software low-poly renderer"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Ilya Kamenshchikov", email = "ilya.kamenshchikov@gmail.com" }]
+dependencies = [
+    "numpy>=2.0.0",
+    "Pillow>=12.1.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=9.0.2", "saga2d"]
+
+[tool.uv.sources]
+saga2d = { path = "../saga2d", editable = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["sagaforge"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
