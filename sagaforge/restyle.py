@@ -510,14 +510,16 @@ FACING_NAMES = ("right", "down-right", "down", "down-left", "left", "up-left", "
 
 
 def judge_with_codex(review_png: Path, subject: str, sheet: Sheet, *, rows: list[int] | None = None, cols: list[int] | None = None,
-                     inventory: str = "", timeout: float = 900) -> list[dict[str, Any]]:
+                     inventory: str = "", instructions: str = JUDGE_INSTRUCTIONS, timeout: float = 900) -> list[dict[str, Any]]:
     """Ask Codex (which can look at images) to check *review_png*, which shows *rows* and *cols*
     of the sheet (all by default), against the subject's *inventory*; returns the per-cell
-    verdicts with the judge's counts."""
+    verdicts with the judge's counts.  *instructions* say what to count and what makes a cell
+    wrong (the default is written for figures; a game judging buildings or tokens passes its own,
+    ending in the same JSON contract)."""
     rows = list(range(sheet.rows)) if rows is None else rows
     cols = list(range(sheet.cols)) if cols is None else cols
     facings = ", ".join(f"col {c} = {FACING_NAMES[c]}" for c in cols) if sheet.cols == 8 else "as labelled"
-    prompt = (f"{JUDGE_INSTRUCTIONS}\n\nThe subject is {subject}. Expected inventory in every cell: {inventory or 'as the stand-in shows'}. "
+    prompt = (f"{instructions}\n\nThe subject is {subject}. Expected inventory in every cell: {inventory or 'as the stand-in shows'}. "
               f"The image shows rows {', '.join(map(str, rows))} and columns {', '.join(map(str, cols))} of the sheet; "
               f"the columns are facings: {facings}. Use the row and column numbers written in the image.")
     result = subprocess.run(

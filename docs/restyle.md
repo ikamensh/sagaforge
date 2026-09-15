@@ -13,6 +13,9 @@ uv run python tools/restyle.py showcase /tmp/skirmish.gif        # a clip throug
 
 Tribes (`tools/restyle.py refresh DIR`, seven tokens on one sheet) and Shardbound
 (`tools/restyle.py refresh DIR`, 18 miniatures on one sheet) work the same way.
+Warband's buildings go through the same tool (`--buildings`): the nine buildings of a
+race share one sheet, and two more sheets per race give them an *active* and a *damaged*
+look (see [Buildings and their looks](#buildings-and-their-looks)).
 
 ## The contract: one subject, one sheet
 
@@ -109,6 +112,35 @@ recolouring per tribe), Shardbound `art.piece` (one PNG per team and kind).
 the stand-ins for comparison. Painted PNGs live next to their JSON; the game repos ignore
 `*.png` by default, so the asset folder is exempted in `.gitignore`.
 
+## Buildings and their looks
+
+A building sheet is one race's nine buildings in a 3 × 3 grid (`Buildings` in Warband's
+tool), cells sized by the biggest building, every building's centre on the cell's
+origin, at 2.5 px per logical unit: nine cells of about 255 × 370 px make a 1.5-megapixel
+sheet, which is what the Codex tool returns anyway. Buildings differ from units:
+
+- **Nothing moves, so the sheet is the subject.** One cell per building; the runtime
+  (`textures.building_image`) takes the frame by `building_key` and recolours it per
+  player like a unit frame. The gold mine keeps its twenty procedural variants and the
+  construction scaffold stays procedural.
+- **Team colour leaks matter more.** A hue recolour turns every saturated blue crimson
+  for the second player, and buildings have roofs, glass and water where a unit has
+  steel and skin. The stand-ins therefore avoid the team hue everywhere but on team
+  parts (the barracks' slate is warm grey, the church's shingles green-teal, its window
+  amber, the quench tub dark green), the prompt says so in words, and the preview PNG
+  puts the sheet recoloured to the second player under the painting so a leak is seen.
+- **Looks are edits of the painting, not of the stand-in.** `active` (training or
+  researching) and `damaged` (under half hit points) sheets are painted from the
+  *installed intact painting* composed back onto the chroma grid, with a prompt that
+  asks for the same buildings lit and busy, or holed and scorched. Starting from the
+  painting keeps each building's identity and style; the judge compares a look against
+  the intact painting instead of a stand-in. `refresh` paints the intact sheets first
+  and the looks after they are installed (`Subject.stage`). A look without a sheet
+  shows the intact painting, so a half-painted race still plays.
+- **The judge counts parts, not weapons.** `judge_with_codex(..., instructions=...)`
+  takes the game's own instructions: for buildings, the same kind and footprint, no
+  missing tower or dome, no blue where the stand-in has none, no people or smoke.
+
 ## Judging: the consistency check
 
 Geometry cannot see a second sword. `review_image` lays a few rows of a sheet out with
@@ -142,8 +174,8 @@ What was learned making it work:
   questioned cells that come back clean; the rest of the sheet is untouched.
 
 `tools/restyle.py check DIR` (Warband, with `--fix`, `--patch`, `--rounds`, `--max-bad`,
-`--sheets` for judging an uninstalled folder) and `tools/restyle.py check DIR` (Tribes,
-Shardbound).
+`--sheets` for judging an uninstalled folder; `--buildings` judges the building sheets,
+one row of three per review image) and `tools/restyle.py check DIR` (Tribes, Shardbound).
 
 ## Adding things
 
@@ -152,6 +184,9 @@ Shardbound).
   painted sheet is then stale and `refresh` re-renders them all.
 - **A new race**: write its `SUBJECTS` descriptions and `FIXES` in the tool, run
   `--race orc refresh DIR`.
+- **A new building or look** (Warband): describe it in `BUILDING_SUBJECTS` (per race)
+  and `BUILDING_FIXES`, `ACTIVE` and `DAMAGED`; a new look also needs a
+  `LOOK_BRIEF`, a place in `textures.BUILDING_LOOKS` and a rule in `view.building_look`.
 - **A new subject in another game**: render the frames the game's own way into cell-sized
   RGBA images with a shared anchor, `Sheet.layout` them, write a `prompt()`, and reuse
   `render_with_codex` / `cut` / `save_frames`. Shardbound shows how vector art is
