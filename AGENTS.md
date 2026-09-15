@@ -27,7 +27,9 @@ uv run python tools/demo_synth.py --audible   # compose a WAV and play it throug
   pack a subject's frames into one chroma-keyed `Sheet`, repaint it (Codex's
   built-in image tool, or an OpenRouter image model), then `cut` keys, aligns
   to the border frame, registers and checks every cell; `recolor` swaps a team
-  colour by hue. Each game drives it from its own `tools/restyle.py`.
+  colour by hue. Each game drives it from its own `tools/restyle.py`; the whole
+  procedure (sheet contract, prompt recipe, providers and their quirks, checks,
+  how to add a subject) is `docs/restyle.md`.
 
 ## Rules
 
