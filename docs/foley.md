@@ -57,8 +57,9 @@ licensed. Say so in the manifest's `license` and in the game's provenance note.
 
 - `voice`: keep everything from the first to the last moment louder than −42 dB below the
   peak, plus 60 ms; band 90 Hz–9 kHz. For cries, words, animal calls.
-- `impact`: keep the first event: from the onset until the envelope has stayed under 3.5 % of
-  the peak for 250 ms, between 0.25 and 1 s; band 30 Hz–9 kHz. For hits, drops, clatters.
+- `impact`: keep the first event: from the onset until the 30 ms envelope has stayed under 3.5 %
+  of its own peak for 250 ms, between 0.25 and 1 s; band 30 Hz–9 kHz. For hits, drops, clatters.
+  Quiet is judged on the smoothed envelope, so one overshooting sample cannot silence the tail.
   Models keep rattling for the whole requested length, so this cut is what makes a stage.
 - `collapse`: an impact allowed to rumble on: the same cut with 400 ms of quiet to stop and 0.5–2.5 s
   kept; band 30 Hz–9 kHz. For masonry coming down, timber crashing, debris settling.
@@ -67,6 +68,7 @@ Two failures are rejected, after everything else in the batch is written: a **si
 (peak under 0.05) and a **click**, a clip whose energy sits mostly above 9 kHz (the low-passed
 peak under 60 % of the raw peak). `build()` raises `BuildError` naming them; change their seed
 or prompt and build again. Everything is then faded 20 ms at both ends and levelled to `peak`.
+The spec hash carries `CUT_VERSION`, so a change to the cutting regenerates every piece.
 
 ## Prompting, learned the hard way
 

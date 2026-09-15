@@ -32,6 +32,7 @@ SHAPES = ("voice", "impact", "collapse")
 BANDS = {"voice": (90.0, 9000.0), "impact": (30.0, 9000.0), "collapse": (30.0, 9000.0)}
 SILENCE = 0.05          # a raw clip peaking below this is a failed generation
 CLICK_RATIO = 0.6       # a cut whose 9 kHz low-passed peak is below this share of its peak is a click, not a sound
+CUT_VERSION = 2         # part of every spec hash: a change to how clips are cut regenerates every piece
 
 
 @dataclass(frozen=True)
@@ -59,7 +60,7 @@ class Piece:
 
     def spec(self, generator: str) -> str:
         """A hash of everything that decides the sound; a different hash means regenerate."""
-        return hashlib.sha256(json.dumps({**asdict(self), "generator": generator}, sort_keys=True).encode()).hexdigest()[:16]
+        return hashlib.sha256(json.dumps({**asdict(self), "generator": generator, "cut": CUT_VERSION}, sort_keys=True).encode()).hexdigest()[:16]
 
 
 #: Takes the pieces to generate and returns each name's raw clip, mono ``(frames,)`` or stereo
@@ -138,15 +139,16 @@ def cut_voice(clip: np.ndarray, *, floor_db: float = -42.0, tail: float = 0.06) 
 
 
 def cut_impact(clip: np.ndarray, *, quiet: float = 0.035, hold: float = 0.25, shortest: float = 0.25, longest: float = 1.0) -> np.ndarray:
-    """From the onset until the envelope has stayed below *quiet* of the peak for *hold* seconds.
+    """From the onset until the 30 ms envelope has stayed below *quiet* of its own peak for *hold* seconds.
 
-    Models keep rattling after the hit they were asked for; this keeps the hit and its tail."""
+    Models keep rattling after the hit they were asked for; this keeps the hit and its tail.  Quiet is
+    judged against the smoothed envelope, not the loudest sample: one overshooting transient must not
+    make the rumble that follows it count as silence."""
     env = np.abs(clip)
-    peak = env.max()
-    onset = max(0, np.flatnonzero(env > peak * 0.03)[0] - int(0.008 * SAMPLE_RATE))
+    onset = max(0, np.flatnonzero(env > env.max() * 0.03)[0] - int(0.008 * SAMPLE_RATE))
     window = int(0.03 * SAMPLE_RATE)
     smooth = np.convolve(env[onset:], np.ones(window) / window, mode="same")
-    below = smooth < peak * quiet
+    below = smooth < smooth.max() * quiet
     end, run = len(smooth), 0
     for i in range(int(0.08 * SAMPLE_RATE), len(smooth)):
         run = run + 1 if below[i] else 0
