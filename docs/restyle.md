@@ -136,8 +136,14 @@ What was learned making it work:
   cells; the judge is a model too, so expect one or two false alarms per sheet and treat
   zero as a bonus, not a requirement.
 
-`tools/restyle.py check DIR` (Warband, with `--fix`, `--rounds`, `--max-bad`, `--sheets`
-for judging an uninstalled folder) and `tools/restyle.py check DIR` (Tribes, Shardbound).
+- **Patch, don't re-roll.** A full re-render trades one bad cell for others (the footman
+  went 2 → 5 → 7 questioned across rounds). `check --patch` re-renders only the rows that
+  hold questioned cells as one-row sheets, judges those, and splices in just the
+  questioned cells that come back clean; the rest of the sheet is untouched.
+
+`tools/restyle.py check DIR` (Warband, with `--fix`, `--patch`, `--rounds`, `--max-bad`,
+`--sheets` for judging an uninstalled folder) and `tools/restyle.py check DIR` (Tribes,
+Shardbound).
 
 ## Adding things
 
