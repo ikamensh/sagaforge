@@ -77,6 +77,12 @@ Rows that differ on purpose (a walk cycle, the phases of a blow) need the senten
 Keys: `openrouter_api_key()` reads `OPENROUTER_API_KEY` from the environment, else the
 stack's secrets index. The stored OpenAI and Gemini API keys are dead.
 
+Output size: the Codex tool returns about 1.5 megapixels whatever the prompt asks for
+(a 2142×2569 sheet came back 1144×1375 even when the request named the size), so a
+72-cell sheet gets roughly 130 px per cell, a 32-cell sheet about 190 px. Enough for
+sprites shown at 45–95 logical px; for more detail split a subject into a walk sheet and a
+blow sheet (at some risk of style drift between them) or use Gemini at `image_size="2K"`.
+
 ## Cutting, checking, installing
 
 `cut(sheet, rendered, original)`:
