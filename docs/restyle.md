@@ -73,7 +73,7 @@ Rows that differ on purpose (a walk cycle, the phases of a blow) need the senten
 
 | Provider | How | Cost | Fidelity | Notes |
 |---|---|---|---|---|
-| Codex built-in image tool (`render_with_codex`) | `codex exec` with the sheet attached, prompt on stdin, the agent copies the PNG out of `$CODEX_HOME/generated_images` | $0 on the ChatGPT plan | keeps grid, camera, scale, poses, team colour | about 2 min a sheet, sheets render concurrently (`--jobs`); the plan has a usage limit (about 25 edits, then "try again at HH:MM"); the prompt must go on stdin because `-i` is variadic |
+| Codex built-in image tool (`render_with_codex`) | `codex exec` with the sheet attached, prompt on stdin, the agent copies the PNG out of `$CODEX_HOME/generated_images` | $0 on the ChatGPT plan | keeps grid, camera, scale, poses, team colour | about 2 min a sheet, sheets render concurrently (`--jobs`); the prompt must go on stdin because `-i` is variadic. Plus has a short usage window (about 25 edits, "try again at HH:MM"); Pro is not unlimited either: one day of about 100 sheet renders and 400 judge calls hit a weekly cap ("try again at <next week>"). Budget the judge: 9 calls per 72-cell sheet, more with `--patch` |
 | OpenRouter Gemini 3.1 Flash Image (`render_with_openrouter`) | chat completion with the sheet as an image input, `image_config` aspect ratio and size | about $0.07 at 1K, $0.15 at 2K | keeps the grid with borders; at 1K it redrew the camera and scale, at 2K it kept 72 distinct poses | use `image_size="2K"` for sheets over 32 cells; aspect ratios are limited to the model's list (1:1, 3:2, 2:3, 4:3, 3:4, 4:5, 5:4, 16:9, 9:16, 21:9) |
 | Other OpenRouter image models | same call, `--model` | $0.15–0.30 | untested | |
 
