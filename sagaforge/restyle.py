@@ -495,7 +495,8 @@ with the expected inventory. A cell is wrong if:
 - any count differs from the inventory (two hilts or two blades where one sword is expected is the common error:
   look for a second gold crossguard near the shield or the hip);
 - it faces a different direction than the stand-in;
-- its pose disagrees with the row's name (a strike row whose weapon is not extended);
+- its pose disagrees with the stand-in directly above it (judge the pose against the stand-in, not against the row's
+  name: the name says what the row is for, the stand-in shows what the painter was asked to keep);
 - a limb, the weapon or the head is missing or merged into the body;
 - it is a different subject (another unit type, mount or race).
 Style, proportion and detail may differ freely; the painter is allowed to make the figure prettier.
