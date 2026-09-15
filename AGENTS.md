@@ -23,6 +23,11 @@ uv run python tools/demo_synth.py --audible   # compose a WAV and play it throug
 - `sagaforge/render3d.py` — a Pillow software renderer for low-poly meshes
   with a configurable camera (`Projection`); the games pre-render blocks,
   props and units to sprites with it.
+- `sagaforge/restyle.py` — re-render schematic sprites with an image model:
+  pack a subject's frames into one chroma-keyed `Sheet`, repaint it (Codex's
+  built-in image tool, or an OpenRouter image model), then `cut` keys, aligns
+  to the border frame, registers and checks every cell; `recolor` swaps a team
+  colour by hue. Each game drives it from its own `tools/restyle.py`.
 
 ## Rules
 

@@ -20,6 +20,7 @@ import base64
 import colorsys
 import json
 import math
+import os
 import re
 import subprocess
 import time
@@ -398,6 +399,18 @@ def render_with_codex(input_png: Path, prompt: str, output_png: Path, *, timeout
     if not output_png.exists():
         raise RuntimeError(f"codex did not write {output_png}:\n{log[-2000:]}")
     return log
+
+
+def openrouter_api_key() -> str:
+    """``OPENROUTER_API_KEY`` from the environment, else from the secrets index the stack keeps."""
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if key:
+        return key
+    secrets = Path("~/secrets/llm-providers.md").expanduser()
+    for line in secrets.read_text().splitlines() if secrets.exists() else ():
+        if line.startswith("OPENROUTER_API_KEY="):
+            return line.split("=", 1)[1].strip()
+    raise KeyError(f"OPENROUTER_API_KEY is neither in the environment nor in {secrets}")
 
 
 def render_with_openrouter(input_png: Path, prompt: str, output_png: Path, *, model: str, api_key: str,
