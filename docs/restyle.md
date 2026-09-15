@@ -109,6 +109,36 @@ recolouring per tribe), Shardbound `art.piece` (one PNG per team and kind).
 the stand-ins for comparison. Painted PNGs live next to their JSON; the game repos ignore
 `*.png` by default, so the asset folder is exempted in `.gitignore`.
 
+## Judging: the consistency check
+
+Geometry cannot see a second sword. `review_image` lays a few rows of a sheet out with
+the stand-ins above the painted frames, labelled by row and column, and
+`judge_with_codex` asks Codex (which can look at images) to count what every painted
+figure carries and compare it with the stand-in and with the subject's inventory. The
+verdicts come back as JSON per cell with the counts and a short issue.
+
+What was learned making it work:
+
+- **Small chunks.** A whole sheet in one image is scaled down by the model and a
+  duplicated hilt at 100 px goes unseen (it reported nothing). Two rows by four columns
+  per call keeps cells at full size; the Warband tool runs the chunks concurrently, about
+  a minute per sheet.
+- **Ask for counts, not opinions.** "Report problems" found three vague issues; "count
+  weapons, shields, heads, mounts and compare with the inventory" found the seven
+  double-hilt cells. Every unit type has an `INVENTORY` line in the Warband tool.
+- **Fix the stand-in, not only the prompt.** The footman's double sword came from the
+  rig: at rest the blade stood nearly vertical and foreshortened to a stub with a gold
+  bar, and the shield carried a raised gold cross; both read as hilts from some facings.
+  The blade is now held out at an angle and the emblem is flat and pale, so gold means
+  "hilt" only.
+- **Best of N.** `check --fix` re-renders a questioned sheet with the complaints written
+  into the prompt and installs a candidate only when the judge questions fewer of its
+  cells; the judge is a model too, so expect one or two false alarms per sheet and treat
+  zero as a bonus, not a requirement.
+
+`tools/restyle.py check DIR` (Warband, with `--fix`, `--rounds`, `--max-bad`, `--sheets`
+for judging an uninstalled folder) and `tools/restyle.py check DIR` (Tribes, Shardbound).
+
 ## Adding things
 
 - **A new frame or pose** (Warband): add it to `textures.FRAMES`/`WALK_FRAMES`/

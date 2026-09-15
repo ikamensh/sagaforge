@@ -102,3 +102,20 @@ def test_save_and_load_frames_round_trip(tmp_path):
     for key, frame in frames.items():
         assert frame.size == sheet.cell
         assert np.array_equal(np.asarray(frame)[..., 3] > 0, np.asarray(result.frames[key])[..., 3] > 0), key
+
+
+def test_review_image_pairs_every_stand_in_with_its_painted_frame():
+    """A reviewer sees, for each requested row and column, the stand-in directly above the
+    painted frame at the same size, and nothing from other rows or columns."""
+    sheet, images = make_sheet(rows=2, cols=3)
+    painted = {k: restyle.recolor(v, (70, 130, 255), (225, 70, 60)) for k, v in images.items()}
+    review = restyle.review_image(sheet, images, painted, rows=[1], cols=[0, 2], row_names=["a", "b"])
+    cw, ch = sheet.cell
+    assert review.size[0] == 2 * cw + 40 and review.size[1] == 2 * ch + 22 + 8
+    top = np.asarray(review.crop((40, 22, 40 + cw, 22 + ch)))
+    bottom = np.asarray(review.crop((40, 22 + ch, 40 + cw, 22 + 2 * ch)))
+    body_top, body_bottom = top[70, 32], bottom[70, 32]
+    assert body_top[2] > body_top[0] + 60, body_top  # the stand-in's blue body
+    assert body_bottom[0] > body_bottom[2] + 60, body_bottom  # the painted red body under it
+    second = np.asarray(review.crop((40 + cw, 22 + ch, 40 + 2 * cw, 22 + 2 * ch)))
+    assert second[70, 32][0] > second[70, 32][2] + 60  # column 2 sits right after column 0

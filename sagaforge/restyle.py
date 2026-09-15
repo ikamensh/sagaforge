@@ -451,3 +451,87 @@ def strip(frames: dict[str, Image.Image], keys: list[str], *, scale: float = 1.0
 
 def gif(frames: list[Image.Image], path: Path, *, ms: int = 200) -> None:
     frames[0].save(path, save_all=True, append_images=frames[1:], duration=ms, loop=0, disposal=2)
+
+
+# -- Judging --------------------------------------------------------------------------
+
+
+def review_image(sheet: Sheet, originals: dict[str, Image.Image], painted: dict[str, Image.Image], *,
+                 rows: list[int] | None = None, cols: list[int] | None = None, row_names: list[str] | None = None,
+                 background: RGB = (60, 90, 50)) -> Image.Image:
+    """The sheet (or its *rows* and *cols*) laid out for a reviewer: for every row of cells the
+    stand-ins above the painted frames, with the row's name and column numbers written in, so
+    a judge can name a cell as "row 3, column 5".  Keep a review image around two rows by four
+    columns: a judge sees a big image scaled down and misses a duplicated hilt at 100 px."""
+    cw, ch = sheet.cell
+    label_h, gutter = 22, 8
+    rows = list(range(sheet.rows)) if rows is None else rows
+    cols = list(range(sheet.cols)) if cols is None else cols
+    width = len(cols) * cw + 40
+    height = len(rows) * (2 * ch + label_h + gutter)
+    image = Image.new("RGBA", (width, height), (*background, 255))
+    draw = ImageDraw.Draw(image)
+    for index, row in enumerate(rows):
+        top = index * (2 * ch + label_h + gutter)
+        name = row_names[row] if row_names else f"row {row}"
+        draw.text((4, top + 4), f"row {row}: {name}   (stand-ins above, painted below)", fill=(255, 255, 255, 255))
+        for cell in sheet.cells:
+            if cell.row != row or cell.col not in cols:
+                continue
+            x = 40 + cols.index(cell.col) * cw
+            image.alpha_composite(originals[cell.key], (x, top + label_h))
+            image.alpha_composite(painted[cell.key], (x, top + label_h + ch))
+            draw.text((x + 4, top + label_h + 4), f"col {cell.col}", fill=(255, 255, 255, 255))
+        draw.line((0, top + label_h + 2 * ch + gutter // 2, width, top + label_h + 2 * ch + gutter // 2), fill=(30, 40, 30, 255), width=2)
+    return image
+
+
+JUDGE_INSTRUCTIONS = """You are checking a repainted sprite sheet against its stand-ins. The image shows, for each row, the
+low-poly stand-in frames above and the painted frames below, labelled "row N: name" and "col N".
+
+Work cell by cell, painted row only, and count what the painted figure carries: weapons (count each hilt, blade,
+bow, staff, club or lance separately), shields, heads, mounts. Then compare with the stand-in directly above and
+with the expected inventory. A cell is wrong if:
+- any count differs from the inventory (two hilts or two blades where one sword is expected is the common error:
+  look for a second gold crossguard near the shield or the hip);
+- it faces a different direction than the stand-in;
+- its pose disagrees with the row's name (a strike row whose weapon is not extended);
+- a limb, the weapon or the head is missing or merged into the body;
+- it is a different subject (another unit type, mount or race).
+Style, proportion and detail may differ freely; the painter is allowed to make the figure prettier.
+
+Reply with one JSON object and nothing else:
+{"cells": [{"row": 0, "col": 0, "weapons": 1, "shields": 1, "ok": true, "issue": ""}, ...]}
+List every cell of the rows shown. Keep issues short and concrete, like "two hilts" or "faces left, stand-in faces right"."""
+
+
+FACING_NAMES = ("right", "down-right", "down", "down-left", "left", "up-left", "up", "up-right")
+
+
+def judge_with_codex(review_png: Path, subject: str, sheet: Sheet, *, rows: list[int] | None = None, cols: list[int] | None = None,
+                     inventory: str = "", timeout: float = 900) -> list[dict[str, Any]]:
+    """Ask Codex (which can look at images) to check *review_png*, which shows *rows* and *cols*
+    of the sheet (all by default), against the subject's *inventory*; returns the per-cell
+    verdicts with the judge's counts."""
+    rows = list(range(sheet.rows)) if rows is None else rows
+    cols = list(range(sheet.cols)) if cols is None else cols
+    facings = ", ".join(f"col {c} = {FACING_NAMES[c]}" for c in cols) if sheet.cols == 8 else "as labelled"
+    prompt = (f"{JUDGE_INSTRUCTIONS}\n\nThe subject is {subject}. Expected inventory in every cell: {inventory or 'as the stand-in shows'}. "
+              f"The image shows rows {', '.join(map(str, rows))} and columns {', '.join(map(str, cols))} of the sheet; "
+              f"the columns are facings: {facings}. Use the row and column numbers written in the image.")
+    result = subprocess.run(
+        ["codex", "exec", "--skip-git-repo-check", "--sandbox", "read-only", "-C", str(review_png.parent), "-i", str(review_png), "-"],
+        input=prompt, capture_output=True, text=True, timeout=timeout,
+    )
+    text = result.stdout
+    start, end = text.rfind("{\"cells\""), text.rfind("}")
+    if start < 0 or end < start:
+        raise RuntimeError(f"the judge returned no verdicts:\n{text[-1500:]}")
+    try:
+        verdicts = json.loads(text[start:end + 1])["cells"]
+    except json.JSONDecodeError as error:
+        raise RuntimeError(f"the judge's verdicts are not JSON ({error}):\n{text[start:end + 1][:1500]}") from error
+    expected = len(rows) * len(cols)
+    if len(verdicts) != expected:
+        raise RuntimeError(f"the judge listed {len(verdicts)} cells, the image shows {expected}")
+    return verdicts
