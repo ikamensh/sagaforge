@@ -19,10 +19,10 @@ from sagaforge.synth import SAMPLE_RATE, noise, tone
 LICENSE = "test license"
 
 
-def burst(start: float, length: float, seconds: float, *, seed: int = 1, low: float = 200, high: float = 3000) -> np.ndarray:
+def burst(start: float, length: float, seconds: float, *, seed: int = 1, low: float = 200, high: float = 3000, tau: float | None = None) -> np.ndarray:
     """A band-limited noise burst *length* seconds long at *start* inside *seconds* of silence, stereo."""
     clip = np.zeros(int(seconds * SAMPLE_RATE))
-    sound = noise(length, low, high, attack=0.02, tau=length, seed=seed) * 0.6
+    sound = noise(length, low, high, attack=0.02, tau=tau or length, seed=seed) * 0.6
     clip[int(start * SAMPLE_RATE):int(start * SAMPLE_RATE) + len(sound)] = sound
     return np.stack([clip, clip], axis=1)
 
@@ -41,6 +41,8 @@ class Synthetic(foley.Generator):
                 clips[p.name] = burst(0.4, 0.5, p.seconds, seed=p.seed)
             elif p.name.startswith("hit"):  # a hit, then a second one 0.6 s later the impact cut must not keep
                 clips[p.name] = burst(0.1, 0.12, p.seconds, seed=p.seed) + burst(0.82, 0.12, p.seconds, seed=p.seed + 1)
+            elif p.name.startswith("rumble"):  # three hits with 0.35 s pauses, then a straggler after a second of silence
+                clips[p.name] = sum(burst(0.1 + 0.45 * k, 0.15, p.seconds, seed=p.seed + k, tau=0.04) for k in range(3)) + burst(2.3, 0.15, p.seconds, seed=p.seed + 9, tau=0.04)
             elif p.name == "quiet":
                 clips[p.name] = np.zeros(int(p.seconds * SAMPLE_RATE))
             elif p.name == "click":
@@ -67,6 +69,15 @@ def test_pieces_are_cut_to_their_sound_levelled_and_listed_with_provenance(tmp_p
         assert entry["length"] == pytest.approx(length(tmp_path / f"{piece.name}.wav"), abs=0.001)
     assert manifest["generator"] == "synthetic" and manifest["license"] == LICENSE
     assert json.loads((tmp_path / "manifest.json").read_text()) == manifest
+
+
+def test_a_collapse_keeps_a_long_event_that_an_impact_would_cut_short(tmp_path: Path) -> None:
+    """The same rumble cut both ways: the impact shape stops at the first quiet, the collapse rides through the pauses."""
+    pieces = [foley.Piece("rumble_impact", "a wall comes down", seconds=3.0, shape="impact"),
+              foley.Piece("rumble_collapse", "a wall comes down", seconds=3.0, shape="collapse")]
+    foley.build(pieces, tmp_path, Synthetic(), license=LICENSE)
+    assert length(tmp_path / "rumble_impact.wav") <= 0.5             # the first hit; a 0.35 s pause ends an impact
+    assert 0.9 <= length(tmp_path / "rumble_collapse.wav") <= 1.4    # all three hits, not the straggler after a second of quiet
 
 
 def test_unchanged_pieces_are_kept_changed_ones_regenerated_and_removed_ones_deleted(tmp_path: Path) -> None:

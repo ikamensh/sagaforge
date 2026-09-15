@@ -60,6 +60,8 @@ licensed. Say so in the manifest's `license` and in the game's provenance note.
 - `impact`: keep the first event: from the onset until the envelope has stayed under 3.5 % of
   the peak for 250 ms, between 0.25 and 1 s; band 30 Hz–9 kHz. For hits, drops, clatters.
   Models keep rattling for the whole requested length, so this cut is what makes a stage.
+- `collapse`: an impact allowed to rumble on: the same cut with 400 ms of quiet to stop and 0.5–2.5 s
+  kept; band 30 Hz–9 kHz. For masonry coming down, timber crashing, debris settling.
 
 Two failures are rejected, after everything else in the batch is written: a **silent** clip
 (peak under 0.05) and a **click**, a clip whose energy sits mostly above 9 kHz (the low-passed

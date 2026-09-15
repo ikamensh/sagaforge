@@ -10,8 +10,9 @@ same contract, so tests and other models plug in.  ``docs/foley.md`` is the guid
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
+from functools import partial
 import hashlib
 import json
 import os
@@ -27,8 +28,8 @@ from PIL import Image
 from sagaforge.synth import SAMPLE_RATE, highpass, level, lowpass, mix, write_wav
 
 #: How a piece is cut out of the model's clip, and the band it is limited to afterwards.
-SHAPES = ("voice", "impact")
-BANDS = {"voice": (90.0, 9000.0), "impact": (30.0, 9000.0)}
+SHAPES = ("voice", "impact", "collapse")
+BANDS = {"voice": (90.0, 9000.0), "impact": (30.0, 9000.0), "collapse": (30.0, 9000.0)}
 SILENCE = 0.05          # a raw clip peaking below this is a failed generation
 CLICK_RATIO = 0.6       # a cut whose 9 kHz low-passed peak is below this share of its peak is a click, not a sound
 
@@ -38,7 +39,8 @@ class Piece:
     """One sound to generate: the file stem, the whole prompt, and how to cut the clip.
 
     *shape* ``voice`` keeps everything between the first and last loud moment (a cry, a word);
-    ``impact`` keeps the first event only (a hit, a drop) and stops when the clip goes quiet.
+    ``impact`` keeps the first event only (a hit, a drop) and stops when the clip goes quiet;
+    ``collapse`` is an impact allowed to rumble on, up to 2.5 s (masonry coming down, debris).
     """
 
     name: str
@@ -155,7 +157,11 @@ def cut_impact(clip: np.ndarray, *, quiet: float = 0.035, hold: float = 0.25, sh
     return clip[onset:onset + end]
 
 
-CUTS: dict[str, Callable[[np.ndarray], np.ndarray]] = {"voice": cut_voice, "impact": cut_impact}
+CUTS: dict[str, Callable[[np.ndarray], np.ndarray]] = {
+    "voice": cut_voice,
+    "impact": cut_impact,
+    "collapse": partial(cut_impact, hold=0.4, shortest=0.5, longest=2.5),
+}
 
 
 def finish(clip: np.ndarray, piece: Piece) -> np.ndarray:
