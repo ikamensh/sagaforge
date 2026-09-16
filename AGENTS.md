@@ -4,7 +4,8 @@ Pure NumPy and Pillow, no window, no audio device. Games generate their art
 and sound with it, at build time or lazily at runtime, and hand the results to
 `saga2d` as ordinary image and sound assets. Part of the Saga stack (`~/saga/`,
 see `../AGENTS.md`); `saga2d` is only a dev dependency here (the demo plays
-through it).
+through it). It is pinned to the published `saga2d==0.2.0` release, so edits
+to the sibling framework checkout do not affect this environment.
 
 ## Commands
 

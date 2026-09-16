@@ -13,6 +13,14 @@ Pillow:
 build their art, effects, voices and soundtracks on these primitives; no
 recorded samples or downloaded assets are involved.
 
+The development environment uses the published `saga2d==0.2.0` release for
+the audio demo; it does not require a sibling engine checkout.
+
+For an existing environment that used the editable engine, run
+`uv sync --locked --extra dev --reinstall-package saga2d` once. A plain sync
+can retain an editable install of the same version. This also restores the
+release after local engine testing.
+
 ```bash
 uv sync --extra dev
 uv run pytest -q

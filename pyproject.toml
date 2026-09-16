@@ -16,10 +16,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=9.0.2", "saga2d"]
-
-[tool.uv.sources]
-saga2d = { path = "../saga2d", editable = true }
+dev = ["pytest>=9.0.2", "saga2d==0.2.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["sagaforge"]

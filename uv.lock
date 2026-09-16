@@ -219,21 +219,16 @@ wheels = [
 [[package]]
 name = "saga2d"
 version = "0.2.0"
-source = { editable = "../saga2d" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pillow" },
     { name = "pyglet" },
     { name = "websockets" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "pillow", specifier = ">=12.1.1" },
-    { name = "pyglet", specifier = ">=2.1.13" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.2" },
-    { name = "websockets", specifier = ">=15,<18" },
+sdist = { url = "https://files.pythonhosted.org/packages/2a/5c/438202920ce7f52c445fa918bfbfa74f98f914a1a7484fbd469e4c622203/saga2d-0.2.0.tar.gz", hash = "sha256:f2998d1f0e6c99766efa5a41aa485929d25f746c93f978da26875f8641a74c1a", size = 419474 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5d/ef/f976d33480e16461eb7c8b466724297748e76e5ccd2727f8f627848391a2/saga2d-0.2.0-py3-none-any.whl", hash = "sha256:6256579c26616cfa6815d1be492ab1d01c6661fb186cb13e9b220dc1af0a929b", size = 321402 },
 ]
-provides-extras = ["dev"]
 
 [[package]]
 name = "sagaforge"
@@ -255,7 +250,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.0.0" },
     { name = "pillow", specifier = ">=12.1.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.2" },
-    { name = "saga2d", marker = "extra == 'dev'", editable = "../saga2d" },
+    { name = "saga2d", marker = "extra == 'dev'", specifier = "==0.2.0" },
 ]
 provides-extras = ["dev"]
 
