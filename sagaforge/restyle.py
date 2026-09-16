@@ -172,7 +172,28 @@ def key_out(image: Image.Image, chroma: RGB = MAGENTA, *, hue_tol: float = 0.08,
     darkness = np.clip((kv - v) / kv, 0, 1)
     alpha = np.clip(1 - keyness + keyness * darkness * shadow, 0, 1)
     out = np.dstack([rgb * (1 - keyness)[..., None], alpha[..., None]])
-    return Image.fromarray((out * 255).round().astype(np.uint8), "RGBA")
+    return despill(Image.fromarray((out * 255).round().astype(np.uint8), "RGBA"), chroma)
+
+
+def despill(image: Image.Image, chroma: RGB = MAGENTA) -> Image.Image:
+    """Take the key's cast off the edge pixels.  The model anti-aliases a figure into the key
+    colour, so a partly transparent pixel carries some of it: the amount by which the key's
+    strong channels exceed its weak one moves over to the weak one, and the pixel keeps its
+    brightness but loses the tint.  Opaque pixels are the painting and stay as they are."""
+    arr = np.asarray(image.convert("RGBA")).astype(np.float32)
+    strong = [i for i in range(3) if chroma[i] > 127]
+    weak = [i for i in range(3) if chroma[i] <= 127]
+    if not strong or not weak:
+        raise ValueError(f"a key colour needs strong and weak channels, not {chroma}")
+    edge = (arr[..., 3] > 0) & (arr[..., 3] < 255)
+    spill = np.clip(arr[..., strong].min(axis=-1) - arr[..., weak].max(axis=-1), 0, None) * edge
+    # The strong channels come down and the weak ones go up by amounts that meet in the middle
+    # and leave the channels' sum unchanged.
+    for i in strong:
+        arr[..., i] -= spill * len(weak) / 3
+    for i in weak:
+        arr[..., i] += spill * len(strong) / 3
+    return Image.fromarray(np.clip(arr, 0, 255).round().astype(np.uint8), "RGBA")
 
 
 def recolor(image: Image.Image, source: RGB, target: RGB, *, hue_tol: float = 0.09, min_sat: float = 0.25) -> Image.Image:

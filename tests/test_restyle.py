@@ -83,6 +83,23 @@ def test_cut_rejects_an_output_without_the_key_background():
         raise AssertionError("a white sheet must be rejected")
 
 
+def test_despill_takes_the_key_tint_off_edge_pixels_and_leaves_the_painting_alone():
+    image = Image.new("RGBA", (3, 1))
+    image.putdata([(240, 180, 235, 128), (240, 180, 235, 255), (80, 200, 90, 128)])  # a pink-tinted edge, opaque pink paint, a green edge
+    out = list(restyle.despill(image).getdata())
+    edge, paint, green = out
+    assert abs(edge[0] - edge[1]) < 8 and abs(edge[2] - edge[1]) < 4, edge  # neutral now (red keeps its own few points over blue)
+    assert abs(sum(edge[:3]) - sum((240, 180, 235))) < 4, edge  # as bright as before
+    assert paint == (240, 180, 235, 255) and green == (80, 200, 90, 128)
+
+
+def test_key_out_leaves_no_tint_on_the_edge_it_keys():
+    image = Image.new("RGB", (1, 1))
+    image.putdata([(230, 110, 230)])  # a figure pixel half blended into the key
+    r, g, b, a = restyle.key_out(image).getpixel((0, 0))
+    assert 0 < a < 255 and abs(r - g) < 4 and abs(b - g) < 4, (r, g, b, a)
+
+
 def test_recolor_moves_the_team_hue_and_leaves_grey_alone():
     _, images = make_sheet(rows=1, cols=1)
     frame = next(iter(images.values()))
