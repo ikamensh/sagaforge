@@ -321,13 +321,14 @@ def _near(mask: np.ndarray, radius: int) -> np.ndarray:
     return grown
 
 
-def strays(frame: Image.Image, *, keep: int = 60, gap: int = 3, band: float = 0.12, threshold: int = 40) -> list[tuple[int, int, int, int]]:
+def strays(frame: Image.Image, *, keep: int = 60, gap: int = 3, band: float = 0.12, threshold: int = 8) -> list[tuple[int, int, int, int]]:
     """Bounding boxes of what a cut brought in from beyond the figure: the sheet's own cell borders
-    and guide lines, the neighbours' spill, specks.  A stray is a cluster of solid pixels (alpha
-    above *threshold*) separated from the figure (the largest cluster) by more than *gap* px that
-    is a thin line, a speck of six pixels or fewer, or a blob of at most *keep* px lying in the
-    outer *band* of the cell.  Anything within *gap* of the figure is a piece of it, however the
-    alpha threshold cut it; a larger detached shape further in stays too (a thrown effect)."""
+    and guide lines, the neighbours' spill, specks.  A stray is a cluster of visible pixels (alpha
+    above *threshold*, low enough to catch a faint line) separated from the figure (the largest
+    cluster) by more than *gap* px that is a thin line of any length, a speck of six pixels or
+    fewer, or a blob of at most *keep* px lying in the outer *band* of the cell.  Anything within
+    *gap* of the figure is a piece of it, however the threshold cut it; a larger detached shape
+    further in stays too (a thrown effect)."""
     alpha = np.asarray(frame.convert("RGBA"))[..., 3]
     mask = alpha > threshold
     if not mask.any():
@@ -340,7 +341,7 @@ def strays(frame: Image.Image, *, keep: int = 60, gap: int = 3, band: float = 0.
     height, width = mask.shape
     margin = max(6, round(min(height, width) * band))
     boxes = []
-    for label in np.flatnonzero((sizes > 0) & (sizes <= keep)).tolist():
+    for label in np.flatnonzero(sizes > 0).tolist():
         if label == figure:
             continue
         cluster = labels == label
@@ -350,8 +351,9 @@ def strays(frame: Image.Image, *, keep: int = 60, gap: int = 3, band: float = 0.
         y0, y1, x0, x1 = int(ly.min()), int(ly.max()), int(lx.min()), int(lx.max())
         h, w = y1 - y0 + 1, x1 - x0 + 1
         thin = (h <= 2 and w >= 8) or (w <= 2 and h >= 8)
+        small = int(sizes[label]) <= keep
         outer = y0 < margin or x0 < margin or y1 >= height - margin or x1 >= width - margin
-        if thin or int(sizes[label]) <= 6 or outer:
+        if thin or int(sizes[label]) <= 6 or (small and outer):
             boxes.append((x0, y0, x1, y1))
     return boxes
 
@@ -362,7 +364,7 @@ def declutter(frame: Image.Image, **rule: int) -> Image.Image:
     if not boxes:
         return frame
     a = np.asarray(frame.convert("RGBA")).copy()
-    threshold = rule.get("threshold", 40)
+    threshold = rule.get("threshold", 8)
     labels = _components(a[..., 3] > threshold)
     for x0, y0, x1, y1 in boxes:
         window = labels[y0:y1 + 1, x0:x1 + 1]
