@@ -265,6 +265,114 @@ def _shape(frame: Image.Image, threshold: int = 160) -> dict[str, Any] | None:
             "bbox": (int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max()))}
 
 
+def _components(mask: np.ndarray) -> np.ndarray:
+    """Label the 8-connected True regions of *mask*; 0 is the background."""
+    height, width = mask.shape
+    labels = np.zeros((height, width), dtype=np.int32)
+    parent = [0]
+
+    def find(a: int) -> int:
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    previous: list[tuple[int, int, int]] = []  # runs of the row above: start, end (exclusive), label
+    for y in range(height):
+        row = mask[y]
+        if not row.any():
+            previous = []
+            continue
+        padded = np.concatenate(([False], row, [False]))
+        starts = np.flatnonzero(padded[1:] & ~padded[:-1])
+        ends = np.flatnonzero(~padded[1:] & padded[:-1])
+        current = []
+        for start, end in zip(starts.tolist(), ends.tolist()):
+            label = 0
+            for above_start, above_end, above in previous:
+                if above_start <= end and above_end >= start:  # overlapping, or touching at a corner
+                    if label == 0:
+                        label = above
+                    else:
+                        root, other = find(label), find(above)
+                        if root != other:
+                            parent[max(root, other)] = min(root, other)
+            if label == 0:
+                parent.append(len(parent))
+                label = len(parent) - 1
+            labels[y, start:end] = label
+            current.append((start, end, label))
+        previous = current
+    roots = np.fromiter((find(i) for i in range(len(parent))), dtype=np.int32, count=len(parent))
+    return roots[labels]
+
+
+def _near(mask: np.ndarray, radius: int) -> np.ndarray:
+    """*mask* grown by *radius* px in every direction (a square neighbourhood)."""
+    grown = mask.copy()
+    height, width = mask.shape
+    for dy in range(-radius, radius + 1):
+        for dx in range(-radius, radius + 1):
+            if dy == 0 and dx == 0:
+                continue
+            shifted = np.zeros_like(mask)
+            shifted[max(dy, 0):height + min(dy, 0), max(dx, 0):width + min(dx, 0)] = mask[max(-dy, 0):height - max(dy, 0), max(-dx, 0):width - max(dx, 0)]
+            grown |= shifted
+    return grown
+
+
+def strays(frame: Image.Image, *, keep: int = 60, gap: int = 3, band: float = 0.12, threshold: int = 40) -> list[tuple[int, int, int, int]]:
+    """Bounding boxes of what a cut brought in from beyond the figure: the sheet's own cell borders
+    and guide lines, the neighbours' spill, specks.  A stray is a cluster of solid pixels (alpha
+    above *threshold*) separated from the figure (the largest cluster) by more than *gap* px that
+    is a thin line, a speck of six pixels or fewer, or a blob of at most *keep* px lying in the
+    outer *band* of the cell.  Anything within *gap* of the figure is a piece of it, however the
+    alpha threshold cut it; a larger detached shape further in stays too (a thrown effect)."""
+    alpha = np.asarray(frame.convert("RGBA"))[..., 3]
+    mask = alpha > threshold
+    if not mask.any():
+        return []
+    labels = _components(mask)
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
+    figure = int(sizes.argmax())
+    near_figure = _near(labels == figure, gap)
+    height, width = mask.shape
+    margin = max(6, round(min(height, width) * band))
+    boxes = []
+    for label in np.flatnonzero((sizes > 0) & (sizes <= keep)).tolist():
+        if label == figure:
+            continue
+        cluster = labels == label
+        if (cluster & near_figure).any():
+            continue
+        ly, lx = np.nonzero(cluster)
+        y0, y1, x0, x1 = int(ly.min()), int(ly.max()), int(lx.min()), int(lx.max())
+        h, w = y1 - y0 + 1, x1 - x0 + 1
+        thin = (h <= 2 and w >= 8) or (w <= 2 and h >= 8)
+        outer = y0 < margin or x0 < margin or y1 >= height - margin or x1 >= width - margin
+        if thin or int(sizes[label]) <= 6 or outer:
+            boxes.append((x0, y0, x1, y1))
+    return boxes
+
+
+def declutter(frame: Image.Image, **rule: int) -> Image.Image:
+    """*frame* without its :func:`strays`; every other pixel is untouched."""
+    boxes = strays(frame, **rule)
+    if not boxes:
+        return frame
+    a = np.asarray(frame.convert("RGBA")).copy()
+    threshold = rule.get("threshold", 40)
+    labels = _components(a[..., 3] > threshold)
+    for x0, y0, x1, y1 in boxes:
+        window = labels[y0:y1 + 1, x0:x1 + 1]
+        for label in np.unique(window[window > 0]).tolist():
+            ly, lx = np.nonzero(labels == label)
+            if ly.min() >= y0 and ly.max() <= y1 and lx.min() >= x0 and lx.max() <= x1:  # the stray itself, not a neighbour crossing its box
+                a[..., 3][labels == label] = 0
+    return Image.fromarray(a, "RGBA")
+
+
 def _place(frame: Image.Image, size: tuple[int, int], dx: int, dy: int) -> Image.Image:
     placed = Image.new("RGBA", size, (0, 0, 0, 0))
     placed.alpha_composite(frame.crop((max(0, -dx), max(0, -dy), frame.size[0], frame.size[1])), (max(0, dx), max(0, dy)))
@@ -370,7 +478,7 @@ def cut(sheet: Sheet, rendered: Image.Image, original: Image.Image, *, rescale: 
         frame = _clear_border(keyed.crop(sheet.box(c)), border)
         if scale != 1.0:
             frame = frame.resize((max(1, round(cw * scale)), max(1, round(ch * scale))), Image.LANCZOS)
-        frame = _place(frame, sheet.cell, round(dx), round(dy))
+        frame = declutter(_place(frame, sheet.cell, round(dx), round(dy)))
         frames[c.key] = frame
         shape, ref = _shape(frame), og[c.key]
         if shape is None or ref is None:

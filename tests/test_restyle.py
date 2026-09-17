@@ -136,3 +136,29 @@ def test_review_image_pairs_every_stand_in_with_its_painted_frame():
     assert body_bottom[0] > body_bottom[2] + 60, body_bottom  # the painted red body under it
     second = np.asarray(review.crop((40 + cw, 22 + ch, 40 + 2 * cw, 22 + 2 * ch)))
     assert second[70, 32][0] > second[70, 32][2] + 60  # column 2 sits right after column 0
+
+
+def test_strays_are_guide_lines_specks_and_edge_spill_but_not_what_the_figure_holds_or_throws():
+    """A guide line above the figure (even under a spear tip), a neighbour's fragment at the edge, a speck:
+    gone.  A spear tip the alpha threshold broke off its shaft, an arrow flying in the interior: kept."""
+    from PIL import ImageDraw
+    from sagaforge.restyle import declutter, strays
+
+    frame = Image.new("RGBA", (80, 80), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(frame)
+    draw.rectangle((30, 30, 50, 70), fill=(90, 140, 60, 255))  # the figure
+    draw.line((40, 30, 40, 6), fill=(120, 90, 60, 255), width=1)  # its spear shaft
+    draw.rectangle((39, 2, 41, 4), fill=(200, 200, 210, 255))  # its tip, broken off by a 1 px gap
+    draw.line((5, 8, 30, 8), fill=(40, 40, 40, 200), width=1)  # a guide line above the figure, 8 px into the cell
+    draw.rectangle((76, 40, 79, 44), fill=(200, 200, 200, 255))  # the neighbour's lance tip at the right edge
+    draw.point((60, 60), fill=(0, 0, 0, 255))  # a speck
+    draw.rectangle((14, 40, 20, 43), fill=(200, 120, 40, 255))  # an arrow in flight, interior, detached
+    assert strays(frame) == [(5, 8, 30, 8), (76, 40, 79, 44), (60, 60, 60, 60)]
+    cleaned = declutter(frame)
+    before, after = np.asarray(frame)[..., 3], np.asarray(cleaned)[..., 3]
+    gone = (before > 0) & (after == 0)
+    assert gone.sum() == 26 + 20 + 1 and after[8, 5:31].max() == 0 and after[40:45, 76:80].max() == 0 and after[60, 60] == 0
+    assert (after[30:71, 30:51] == 255).all() and after[6:31, 40].min() == 255 and after[2:5, 39:42].min() == 255
+    assert after[40:44, 14:21].min() == 255
+    assert strays(cleaned) == []
+    assert declutter(cleaned) is cleaned
