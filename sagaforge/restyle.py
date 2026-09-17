@@ -287,16 +287,21 @@ def _components(mask: np.ndarray) -> np.ndarray:
         starts = np.flatnonzero(padded[1:] & ~padded[:-1])
         ends = np.flatnonzero(~padded[1:] & padded[:-1])
         current = []
+        first = 0  # runs above that end before this run starts cannot touch any later run either
         for start, end in zip(starts.tolist(), ends.tolist()):
             label = 0
-            for above_start, above_end, above in previous:
-                if above_start <= end and above_end >= start:  # overlapping, or touching at a corner
-                    if label == 0:
-                        label = above
-                    else:
-                        root, other = find(label), find(above)
-                        if root != other:
-                            parent[max(root, other)] = min(root, other)
+            while first < len(previous) and previous[first][1] < start:
+                first += 1
+            index = first
+            while index < len(previous) and previous[index][0] <= end:  # overlapping, or touching at a corner
+                above = previous[index][2]
+                if label == 0:
+                    label = above
+                else:
+                    root, other = find(label), find(above)
+                    if root != other:
+                        parent[max(root, other)] = min(root, other)
+                index += 1
             if label == 0:
                 parent.append(len(parent))
                 label = len(parent) - 1
@@ -321,57 +326,86 @@ def _near(mask: np.ndarray, radius: int) -> np.ndarray:
     return grown
 
 
-def strays(frame: Image.Image, *, keep: int = 60, gap: int = 3, band: float = 0.12, threshold: int = 8) -> list[tuple[int, int, int, int]]:
-    """Bounding boxes of what a cut brought in from beyond the figure: the sheet's own cell borders
-    and guide lines, the neighbours' spill, specks.  A stray is a cluster of visible pixels (alpha
-    above *threshold*, low enough to catch a faint line) separated from the figure (the largest
-    cluster) by more than *gap* px that is a thin line of any length, a speck of six pixels or
-    fewer, or a blob of at most *keep* px lying in the outer *band* of the cell.  Anything within
-    *gap* of the figure is a piece of it, however the threshold cut it; a larger detached shape
-    further in stays too (a thrown effect)."""
+def _boxes(labels: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Per label of *labels*: top, bottom, left, right and pixel count (index 0 is the background)."""
+    count = int(labels.max()) + 1
+    ys, xs = np.nonzero(labels)
+    at = labels[ys, xs]
+    top, left = np.full(count, labels.shape[0], dtype=np.int64), np.full(count, labels.shape[1], dtype=np.int64)
+    bottom, right = np.full(count, -1, dtype=np.int64), np.full(count, -1, dtype=np.int64)
+    np.minimum.at(top, at, ys)
+    np.maximum.at(bottom, at, ys)
+    np.minimum.at(left, at, xs)
+    np.maximum.at(right, at, xs)
+    return top, bottom, left, right, np.bincount(at, minlength=count)
+
+
+def _stray_mask(alpha: np.ndarray, *, keep: int, gap: int, band: float, hug: float, solid: int, faint: int) -> np.ndarray:
+    """Pixels a cut brought in from beyond the figure: the sheet's own cell borders and guide
+    lines, the neighbours' spill, specks.  The figure is the largest cluster of solid pixels
+    (alpha above *solid*); a solid cluster within *gap* px of it is a piece of it, however the
+    threshold cut it.  Any other solid cluster is a stray when it is a thin line, a speck of at
+    most six pixels, or a blob of at most *keep* pixels in the outer *band* of the cell, and it
+    takes its faint halo with it.  Among what is visible (alpha above *faint*) but has no solid
+    pixels, only thin lines and the ghost of the sheet's border (a long, narrow band within
+    *hug* of a side) are strays: faint keying residue and soft shadows stay, and so does any
+    larger detached shape (a thrown effect)."""
+    solid_mask = alpha > solid
+    remove = np.zeros(alpha.shape, dtype=bool)
+    if not solid_mask.any():
+        return remove
+    height, width = alpha.shape
+    margin = max(6, round(min(height, width) * band))
+    edge = round(min(height, width) * hug)
+
+    def shapes(labels: np.ndarray, near: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        top, bottom, left, right, size = _boxes(labels)
+        h, w = bottom - top + 1, right - left + 1
+        thin = ((h <= 2) & (w >= 8)) | ((w <= 2) & (h >= 8))
+        outer = (top < margin) | (left < margin) | (bottom >= height - margin) | (right >= width - margin)
+        hugging = (bottom < edge) | (top >= height - edge) | (right < edge) | (left >= width - edge)
+        hugging &= ((h >= height * 0.25) & (w <= width * 0.08)) | ((w >= width * 0.25) & (h <= height * 0.08))  # a long, narrow band along a side
+        touching = np.zeros(size.shape, dtype=bool)
+        touching[np.unique(labels[near])] = True
+        return thin, outer, hugging, touching, size
+
+    labels = _components(solid_mask)
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
+    near_figure = _near(labels == int(sizes.argmax()), gap)
+    thin, outer, _, touching, size = shapes(labels, near_figure)
+    stray = ~touching & (thin | (size <= 6) | ((size <= keep) & outer))
+    stray[0] = False
+    remove = stray[labels]
+    remove |= _near(remove, 1) & (alpha > faint)  # a stray's faint halo goes with it
+    faint_labels = _components((alpha > faint) & ~remove & ~solid_mask)
+    if faint_labels.any():
+        thin, _, hugging, touching, _ = shapes(faint_labels, near_figure)
+        ghost = ~touching & (thin | hugging)
+        ghost[0] = False
+        remove |= ghost[faint_labels]
+    return remove
+
+
+def strays(frame: Image.Image, *, keep: int = 60, gap: int = 3, band: float = 0.12, hug: float = 0.2, solid: int = 40, faint: int = 8) -> list[tuple[int, int, int, int]]:
+    """Bounding boxes of the stray clusters of *frame*; see :func:`_stray_mask` for what counts."""
     alpha = np.asarray(frame.convert("RGBA"))[..., 3]
-    mask = alpha > threshold
+    mask = _stray_mask(alpha, keep=keep, gap=gap, band=band, hug=hug, solid=solid, faint=faint)
     if not mask.any():
         return []
     labels = _components(mask)
-    sizes = np.bincount(labels.ravel())
-    sizes[0] = 0
-    figure = int(sizes.argmax())
-    near_figure = _near(labels == figure, gap)
-    height, width = mask.shape
-    margin = max(6, round(min(height, width) * band))
-    boxes = []
-    for label in np.flatnonzero(sizes > 0).tolist():
-        if label == figure:
-            continue
-        cluster = labels == label
-        if (cluster & near_figure).any():
-            continue
-        ly, lx = np.nonzero(cluster)
-        y0, y1, x0, x1 = int(ly.min()), int(ly.max()), int(lx.min()), int(lx.max())
-        h, w = y1 - y0 + 1, x1 - x0 + 1
-        thin = (h <= 2 and w >= 8) or (w <= 2 and h >= 8)
-        small = int(sizes[label]) <= keep
-        outer = y0 < margin or x0 < margin or y1 >= height - margin or x1 >= width - margin
-        if thin or int(sizes[label]) <= 6 or (small and outer):
-            boxes.append((x0, y0, x1, y1))
-    return boxes
+    top, bottom, left, right, size = _boxes(labels)
+    boxes = [(int(left[i]), int(top[i]), int(right[i]), int(bottom[i])) for i in np.flatnonzero(size > 0).tolist() if i > 0]
+    return sorted(boxes, key=lambda b: (b[1], b[0]))
 
 
 def declutter(frame: Image.Image, **rule: int) -> Image.Image:
     """*frame* without its :func:`strays`; every other pixel is untouched."""
-    boxes = strays(frame, **rule)
-    if not boxes:
-        return frame
     a = np.asarray(frame.convert("RGBA")).copy()
-    threshold = rule.get("threshold", 8)
-    labels = _components(a[..., 3] > threshold)
-    for x0, y0, x1, y1 in boxes:
-        window = labels[y0:y1 + 1, x0:x1 + 1]
-        for label in np.unique(window[window > 0]).tolist():
-            ly, lx = np.nonzero(labels == label)
-            if ly.min() >= y0 and ly.max() <= y1 and lx.min() >= x0 and lx.max() <= x1:  # the stray itself, not a neighbour crossing its box
-                a[..., 3][labels == label] = 0
+    mask = _stray_mask(a[..., 3], **{"keep": 60, "gap": 3, "band": 0.12, "hug": 0.2, "solid": 40, "faint": 8, **rule})
+    if not mask.any():
+        return frame
+    a[..., 3][mask] = 0
     return Image.fromarray(a, "RGBA")
 
 

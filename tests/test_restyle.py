@@ -153,15 +153,19 @@ def test_strays_are_guide_lines_specks_and_edge_spill_but_not_what_the_figure_ho
     draw.rectangle((76, 40, 79, 44), fill=(200, 200, 200, 255))  # the neighbour's lance tip at the right edge
     draw.point((60, 60), fill=(0, 0, 0, 255))  # a speck
     draw.rectangle((14, 40, 20, 43), fill=(200, 120, 40, 255))  # an arrow in flight, interior, detached
-    draw.line((0, 76, 79, 76), fill=(30, 30, 30, 24))  # a faint guide line the whole width of the cell, under the feet
+    draw.line((0, 78, 79, 78), fill=(30, 30, 30, 24))  # a faint guide line the whole width of the cell, under the shadow
     draw.point((51, 50), fill=(90, 140, 60, 20))  # the figure's own faint edge pixel
-    assert strays(frame) == [(5, 8, 30, 8), (76, 40, 79, 44), (60, 60, 60, 60), (0, 76, 79, 76)]
+    draw.point((24, 20), fill=(255, 0, 255, 20))  # faint keying residue in the interior
+    draw.ellipse((28, 71, 52, 75), fill=(0, 0, 0, 30))  # a soft shadow blob just below the feet
+    draw.rectangle((0, 20, 5, 60), fill=(20, 20, 20, 16))  # the ghost of the sheet's border, hugging the left edge
+    assert strays(frame) == [(5, 8, 30, 8), (0, 20, 5, 60), (76, 40, 79, 44), (60, 60, 60, 60), (0, 78, 79, 78)]
     cleaned = declutter(frame)
     before, after = np.asarray(frame)[..., 3], np.asarray(cleaned)[..., 3]
     gone = (before > 0) & (after == 0)
-    assert gone.sum() == 26 + 20 + 1 + 80 and after[8, 5:31].max() == 0 and after[40:45, 76:80].max() == 0 and after[60, 60] == 0
-    assert after[76].max() == 0
+    assert gone.sum() == 26 + 20 + 1 + 80 + 6 * 41 and after[8, 5:31].max() == 0 and after[40:45, 76:80].max() == 0 and after[60, 60] == 0
+    assert after[20:61, 0:6].max() == 0
+    assert after[78].max() == 0
     assert (after[30:71, 30:51] == 255).all() and after[6:31, 40].min() == 255 and after[2:5, 39:42].min() == 255
-    assert after[40:44, 14:21].min() == 255 and after[50, 51] == 20
+    assert after[40:44, 14:21].min() == 255 and after[50, 51] == 20 and after[20, 24] == 20 and after[73, 40] == 30
     assert strays(cleaned) == []
     assert declutter(cleaned) is cleaned

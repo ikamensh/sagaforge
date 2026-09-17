@@ -101,7 +101,14 @@ blow sheet (at some risk of style drift between them) or use Gemini at `image_si
    the cell, nothing touching a border, a figure present. `Cut.flagged` lists failures;
    the tools reject a sheet over their tolerance and print why. Re-render rather than
    patch a bad sheet; a second run usually differs.
-5. `save_frames` writes one RGBA sheet without margins plus the layout JSON into the
+5. `declutter` strips what the cut brought in from beyond the figure (`strays` lists it):
+   thin lines at any length or faintness (the sheet's own cell borders and guide lines),
+   specks, small blobs in the outer band of the cell (the neighbours' spill) and the faint
+   long narrow band that is the ghost of a border. A cluster within 3 px of the figure is a
+   piece of it however the alpha threshold cut it, and a larger detached shape further in
+   stays (a thrown effect). Games can lint their committed sheets with `strays` and clean
+   them once with `declutter` when a rule improves.
+6. `save_frames` writes one RGBA sheet without margins plus the layout JSON into the
    game's asset folder; `load_frames` reads it back into cell-sized frames.
 
 At runtime each game checks for a painted subject before rendering the stand-in:
