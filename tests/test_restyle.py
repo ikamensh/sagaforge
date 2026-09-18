@@ -169,3 +169,23 @@ def test_strays_are_guide_lines_specks_and_edge_spill_but_not_what_the_figure_ho
     assert after[40:44, 14:21].min() == 255 and after[50, 51] == 20 and after[20, 24] == 20 and after[73, 40] == 30
     assert strays(cleaned) == []
     assert declutter(cleaned) is cleaned
+
+
+def test_the_keys_faint_field_goes_and_the_figures_soft_edge_and_shadow_stay():
+    from PIL import ImageDraw
+    from sagaforge.restyle import clear_residue, residue
+
+    frame = Image.new("RGBA", (80, 80), (40, 60, 30, 10))  # the field the hue key left over the whole cell
+    draw = ImageDraw.Draw(frame)
+    draw.rectangle((30, 30, 50, 60), fill=(90, 140, 60, 255))  # the figure
+    draw.rectangle((28, 28, 52, 62), outline=(90, 140, 60, 20))  # its anti-aliased edge, within reach
+    draw.ellipse((22, 58, 58, 70), fill=(0, 0, 0, 30))  # a shadow above the floor, part of it beyond reach
+    draw.point((10, 10), fill=(0, 0, 0, 24))  # at the floor, far away: residue
+    draw.point((70, 10), fill=(0, 0, 0, 25))  # just above it: not residue
+    alpha = np.asarray(frame)[..., 3]
+    mask = residue(alpha)
+    assert mask[10, 10] and not mask[10, 70] and not mask[28, 28] and not mask[65, 40]
+    cleaned = np.asarray(clear_residue(frame))[..., 3]
+    assert cleaned[10, 10] == 0 and cleaned[10, 70] == 25 and cleaned[28, 28] == 20 and cleaned[65, 40] == 30
+    assert (cleaned[30:61, 30:51] == 255).all() and cleaned[0, 0] == 0 and cleaned[79, 79] == 0
+    assert not residue(cleaned).any()

@@ -399,6 +399,23 @@ def strays(frame: Image.Image, *, keep: int = 60, gap: int = 3, band: float = 0.
     return sorted(boxes, key=lambda b: (b[1], b[0]))
 
 
+def residue(alpha: np.ndarray, *, floor: int = 24, reach: int = 3, solid: int = 40) -> np.ndarray:
+    """Where the hue key left a faint field over the cell: pixels farther than *reach* px from any
+    solid pixel (alpha above *solid*) that still carry alpha, no more than *floor*.  The figure's
+    anti-aliased edge and the shadows drawn against it lie within that reach or above that floor."""
+    return ~_near(alpha > solid, reach) & (alpha > 0) & (alpha <= floor)
+
+
+def clear_residue(frame: Image.Image, **rule: int) -> Image.Image:
+    """*frame* with its :func:`residue` made fully transparent; every other pixel is untouched."""
+    a = np.asarray(frame.convert("RGBA")).copy()
+    mask = residue(a[..., 3], **rule)
+    if not mask.any():
+        return frame
+    a[..., 3][mask] = 0
+    return Image.fromarray(a, "RGBA")
+
+
 def declutter(frame: Image.Image, **rule: int) -> Image.Image:
     """*frame* without its :func:`strays`; every other pixel is untouched."""
     a = np.asarray(frame.convert("RGBA")).copy()
@@ -514,7 +531,7 @@ def cut(sheet: Sheet, rendered: Image.Image, original: Image.Image, *, rescale: 
         frame = _clear_border(keyed.crop(sheet.box(c)), border)
         if scale != 1.0:
             frame = frame.resize((max(1, round(cw * scale)), max(1, round(ch * scale))), Image.LANCZOS)
-        frame = declutter(_place(frame, sheet.cell, round(dx), round(dy)))
+        frame = clear_residue(declutter(_place(frame, sheet.cell, round(dx), round(dy))))
         frames[c.key] = frame
         shape, ref = _shape(frame), og[c.key]
         if shape is None or ref is None:
