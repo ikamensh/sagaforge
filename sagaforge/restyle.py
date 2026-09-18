@@ -531,7 +531,7 @@ def cut(sheet: Sheet, rendered: Image.Image, original: Image.Image, *, rescale: 
         frame = _clear_border(keyed.crop(sheet.box(c)), border)
         if scale != 1.0:
             frame = frame.resize((max(1, round(cw * scale)), max(1, round(ch * scale))), Image.LANCZOS)
-        frame = clear_residue(declutter(_place(frame, sheet.cell, round(dx), round(dy))))
+        frame = declutter(clear_residue(_place(frame, sheet.cell, round(dx), round(dy))))  # the field first: what it hid may be a sliver
         frames[c.key] = frame
         shape, ref = _shape(frame), og[c.key]
         if shape is None or ref is None:
