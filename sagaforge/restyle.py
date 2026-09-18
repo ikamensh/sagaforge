@@ -155,7 +155,7 @@ def _hsv_to_rgb(h: np.ndarray, s: np.ndarray, v: np.ndarray) -> np.ndarray:
     i = np.floor(h * 6).astype(int) % 6
     f = h * 6 - np.floor(h * 6)
     p, q, t = v * (1 - s), v * (1 - s * f), v * (1 - s * (1 - f))
-    choices = [np.dstack([v, t, p]), np.dstack([q, v, p]), np.dstack([p, v, t]), np.dstack([p, q, v]), np.dstack([t, p, v]), np.dstack([v, p, q])]
+    choices = [np.stack(c, axis=-1) for c in ((v, t, p), (q, v, p), (p, v, t), (p, q, v), (t, p, v), (v, p, q))]
     return np.choose(i[..., None], choices)
 
 
@@ -205,8 +205,11 @@ def recolor(image: Image.Image, source: RGB, target: RGB, *, hue_tol: float = 0.
     th, ts, tv = colorsys.rgb_to_hsv(*(c / 255 for c in target))
     dist = np.abs((h - sh + 0.5) % 1 - 0.5)
     weight = np.clip(1 - dist / hue_tol, 0, 1) * (s >= min_sat)
+    team = weight > 0  # only these pixels move; converting the rest back from HSV only to weigh it by nothing cost half the time
+    h, s, v, w = h[team], s[team], v[team], weight[team][:, None]
     moved = _hsv_to_rgb((h + th - sh) % 1, np.clip(s * ts / max(ss, 1e-6), 0, 1), np.clip(v * tv / max(sv, 1e-6), 0, 1))
-    arr[..., :3] = arr[..., :3] * (1 - weight)[..., None] + moved * weight[..., None]
+    rgb = arr[..., :3]
+    rgb[team] = rgb[team] * (1 - w) + moved * w
     return Image.fromarray((arr * 255).round().astype(np.uint8), "RGBA")
 
 

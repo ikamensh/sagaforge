@@ -108,6 +108,9 @@ def test_recolor_moves_the_team_hue_and_leaves_grey_alone():
     head = red[40, 32]
     assert body[0] > body[2] + 60, body  # blue tunic became red
     assert tuple(head[:3]) == (160, 160, 160), head
+    before = np.asarray(frame.convert("RGBA"))
+    changed = np.any(red != before, axis=-1)
+    assert changed.any() and np.all(before[changed][:, 2] > before[changed][:, 0]), "only the team's blue may change, byte for byte"
 
 
 def test_save_and_load_frames_round_trip(tmp_path):
