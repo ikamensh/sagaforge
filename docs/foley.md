@@ -2,7 +2,7 @@
 
 How the Saga games get sounds a synthesiser cannot make, a dying orc, a sword hitting stone,
 out of a text-to-audio model, and keep them reproducible. The library is `sagaforge/foley.py`;
-a game drives it from a tool of its own (Warband: `tools/deaths.py`).
+a game drives it from a tool of its own (Warband: `tools/pieces.py`).
 
 ## The idea
 
