@@ -566,18 +566,24 @@ def load_frames(path: Path) -> tuple[Sheet, dict[str, Image.Image]]:
 # -- Providers ------------------------------------------------------------------------
 
 
-def render_with_codex(input_png: Path, prompt: str, output_png: Path, *, timeout: float = 900) -> str:
+def render_with_codex(input_png: Path, prompt: str, output_png: Path, *, timeout: float = 900,
+                      model: str | None = None, effort: str | None = None) -> str:
     """Repaint *input_png* with Codex's built-in image tool (the user's ChatGPT plan; no API key).
 
     Runs ``codex exec`` non-interactively in the output's directory; the agent is asked
-    to edit the attached image and copy the result to *output_png*.  Returns the log."""
+    to edit the attached image and copy the result to *output_png*.  Returns the log.
+    *model* and *effort* override the user's Codex configuration for this call only: a
+    ChatGPT account refuses some models a config may name, and copying one file needs
+    little reasoning."""
     workdir = output_png.parent
     workdir.mkdir(parents=True, exist_ok=True)
     task = (f"{prompt}\n\nUse the built-in image_gen tool in edit mode on the attached image (also at {input_png}) "
             f"with the specification above, then copy the generated PNG to {output_png} (it is saved under "
             f"$CODEX_HOME/generated_images). Do not modify anything else; finish by printing the path you copied from.")
+    options = (["-m", model] if model else []) + (["-c", f"model_reasoning_effort={effort}"] if effort else [])
     result = subprocess.run(
-        ["codex", "exec", "--skip-git-repo-check", "--sandbox", "workspace-write", "-C", str(workdir), "-i", str(input_png), "-"],
+        ["codex", "exec", "--skip-git-repo-check", "--sandbox", "workspace-write", *options, "-C", str(workdir),
+         "-i", str(input_png), "-"],
         input=task, capture_output=True, text=True, timeout=timeout,
     )
     log = result.stdout + result.stderr
